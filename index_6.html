@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kemoli's Chama — Ledger</title>
+<link rel="icon" href="data:,">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap');
+
+/* =======================================================================
+   CONFIG — fill these in from Supabase: Settings > API, then redeploy.
+   ======================================================================= */
+</style>
+<style>
+  html,body{margin:0;padding:0;}
+  .cl-root { font-family:'Inter',sans-serif; color:#21241F; background:#F6F2E7; min-height:100vh; }
+  .cl-root * { box-sizing:border-box; }
+  .cl-num { font-family:'IBM Plex Mono',monospace; font-variant-numeric:tabular-nums; }
+  .cl-display { font-family:'Fraunces',serif; }
+</style>
+</head>
+<body>
+
+<div class="cl-root" id="clRoot">
+  <div style="padding:28px 20px 40px;max-width:760px;margin:0 auto;">
+
+    <div style="display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:8px;border-bottom:2px solid #1F4A3D;padding-bottom:14px;margin-bottom:20px;">
+      <div>
+        <div class="cl-display" style="font-size:24px;font-weight:600;color:#1F4A3D;" id="clChamaTitle">Kemoli's Chama</div>
+        <div style="font-size:12px;color:#5B5B52;margin-top:2px;">Contribution &amp; savings ledger</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button onclick="clShiftMonth(-1)" style="width:30px;height:30px;border-radius:50%;border:1px solid #DDD5C0;background:#fff;cursor:pointer;font-size:14px;">‹</button>
+        <div class="cl-num" style="font-size:15px;font-weight:600;min-width:120px;text-align:center;" id="clMonthLabel">—</div>
+        <button onclick="clShiftMonth(1)" style="width:30px;height:30px;border-radius:50%;border:1px solid #DDD5C0;background:#fff;cursor:pointer;font-size:14px;">›</button>
+      </div>
+    </div>
+
+    <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-bottom:16px;font-size:12px;">
+      <span id="clAuthStatus" style="color:#5B5B52;">Viewing only</span>
+      <button id="clAuthBtn" onclick="clOpenLogin()" style="padding:6px 14px;border-radius:20px;border:1px solid #1F4A3D;background:#fff;color:#1F4A3D;font-size:12px;font-weight:600;cursor:pointer;">Sign in</button>
+    </div>
+
+    <div id="clLoginModal" style="display:none;position:fixed;inset:0;background:rgba(33,36,31,0.45);z-index:50;align-items:center;justify-content:center;">
+      <div style="background:#fff;border-radius:14px;padding:24px;width:100%;max-width:320px;margin:16px;">
+        <div class="cl-display" style="font-size:17px;font-weight:600;color:#1F4A3D;margin-bottom:14px;">Admin sign in</div>
+        <label style="display:block;font-size:12px;color:#5B5B52;margin-bottom:4px;">Email</label>
+        <input id="clLoginEmail" type="email" style="width:100%;padding:9px 10px;border:1px solid #DDD5C0;border-radius:8px;margin-bottom:12px;font-size:14px;">
+        <label style="display:block;font-size:12px;color:#5B5B52;margin-bottom:4px;">Password</label>
+        <input id="clLoginPassword" type="password" style="width:100%;padding:9px 10px;border:1px solid #DDD5C0;border-radius:8px;margin-bottom:6px;font-size:14px;">
+        <div id="clLoginError" style="color:#B23A2E;font-size:12px;min-height:16px;margin-bottom:8px;"></div>
+        <div style="display:flex;gap:8px;">
+          <button onclick="clCloseLogin()" style="flex:1;padding:9px;border-radius:8px;border:1px solid #DDD5C0;background:#fff;font-size:13px;cursor:pointer;">Cancel</button>
+          <button onclick="clDoLogin()" style="flex:1;padding:9px;border-radius:8px;border:none;background:#1F4A3D;color:#fff;font-size:13px;font-weight:600;cursor:pointer;">Sign in</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="clLoading" style="text-align:center;padding:60px 0;color:#5B5B52;font-size:14px;">Loading ledger…</div>
+    <div id="clError" style="display:none;text-align:center;padding:40px 20px;color:#B23A2E;font-size:13px;background:#fff;border-radius:12px;"></div>
+
+    <div id="clApp" style="display:none;">
+
+      <div style="display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap;">
+        <button class="cl-tab" data-tab="ledger" onclick="clSwitchTab('ledger')" style="flex:1;padding:9px;border-radius:8px;border:1px solid #1F4A3D;background:#1F4A3D;color:#fff;font-size:13px;font-weight:600;cursor:pointer;">Ledger</button>
+        <button class="cl-tab" data-tab="payout" onclick="clSwitchTab('payout')" style="flex:1;padding:9px;border-radius:8px;border:1px solid #DDD5C0;background:#fff;color:#21241F;font-size:13px;font-weight:600;cursor:pointer;">Payout</button>
+        <button class="cl-tab" data-tab="members" onclick="clSwitchTab('members')" style="flex:1;padding:9px;border-radius:8px;border:1px solid #DDD5C0;background:#fff;color:#21241F;font-size:13px;font-weight:600;cursor:pointer;">Members</button>
+        <button id="clLoansTabBtn" class="cl-tab" data-tab="loans" onclick="clSwitchTab('loans')" style="display:none;flex:1;padding:9px;border-radius:8px;border:1px solid #DDD5C0;background:#fff;color:#21241F;font-size:13px;font-weight:600;cursor:pointer;">Loans</button>
+      </div>
+
+      <!-- LEDGER TAB -->
+      <div id="clTabLedger">
+        <div style="font-size:12px;color:#5B5B52;margin-bottom:10px;">Type in the total amount each person sent this month — the split into contribution, transaction fee and savings happens automatically.</div>
+        <div id="clMemberRows"></div>
+
+        <div style="margin-top:22px;background:#fff;border-radius:12px;position:relative;padding:18px 20px 22px;box-shadow:0 1px 2px rgba(0,0,0,0.04);">
+          <div class="cl-display" style="font-size:15px;font-weight:600;color:#1F4A3D;margin-bottom:12px;">This month's summary</div>
+          <div id="clSummaryRows" style="font-size:13px;"></div>
+          <div style="border-top:1.5px dashed #DDD5C0;margin:12px 0;"></div>
+          <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:600;">
+            <span>Total balance carried</span>
+            <span class="cl-num" id="clTotalBalance">KES 0</span>
+          </div>
+        </div>
+
+        <div style="margin-top:16px;background:#fff;border-radius:12px;padding:16px 20px;">
+          <div class="cl-display" style="font-size:14px;font-weight:600;color:#1F4A3D;margin-bottom:10px;">Adjustments this month</div>
+          <div style="display:flex;gap:14px;flex-wrap:wrap;">
+            <label style="flex:1;min-width:140px;font-size:12px;color:#5B5B52;">Interest earned
+              <input type="number" id="clInterestInput" oninput="clSaveAdjustments()" style="display:block;width:100%;margin-top:4px;padding:8px 10px;border:1px solid #DDD5C0;border-radius:8px;font-family:'IBM Plex Mono',monospace;" placeholder="0">
+            </label>
+            <label style="flex:1;min-width:140px;font-size:12px;color:#5B5B52;">Withdrawals
+              <input type="number" id="clWithdrawalInput" oninput="clSaveAdjustments()" style="display:block;width:100%;margin-top:4px;padding:8px 10px;border:1px solid #DDD5C0;border-radius:8px;font-family:'IBM Plex Mono',monospace;" placeholder="0">
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAYOUT TAB -->
+      <div id="clTabPayout" style="display:none;">
+        <div style="font-size:12px;color:#5B5B52;margin-bottom:14px;">Pick the two members receiving this month's pooled contributions. The payout amount is split evenly and does not include savings.</div>
+        <div style="background:#fff;border-radius:12px;padding:18px 20px;">
+          <label style="display:block;font-size:12px;color:#5B5B52;margin-bottom:6px;">Recipient 1</label>
+          <select id="clPayoutA" onchange="clSavePayout()" style="width:100%;padding:9px 10px;border:1px solid #DDD5C0;border-radius:8px;margin-bottom:14px;font-size:14px;"></select>
+          <label style="display:block;font-size:12px;color:#5B5B52;margin-bottom:6px;">Recipient 2</label>
+          <select id="clPayoutB" onchange="clSavePayout()" style="width:100%;padding:9px 10px;border:1px solid #DDD5C0;border-radius:8px;margin-bottom:18px;font-size:14px;"></select>
+          <div style="border-top:1px solid #DDD5C0;padding-top:14px;display:flex;justify-content:space-between;font-size:14px;font-weight:600;">
+            <span>Each receives</span>
+            <span class="cl-num" id="clPayoutEach">KES 0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- MEMBERS TAB -->
+      <div id="clTabMembers" style="display:none;">
+        <div style="font-size:12px;color:#5B5B52;margin-bottom:14px;">Rename placeholder members as your list is confirmed. Mark someone inactive if they drop out — their history stays intact.</div>
+        <div id="clMemberManageRows"></div>
+        <button id="clAddMemberBtn" onclick="clAddMember()" style="margin-top:10px;width:100%;padding:10px;border-radius:8px;border:1px dashed #1F4A3D;background:#fff;color:#1F4A3D;font-size:13px;font-weight:600;cursor:pointer;">+ Add member</button>
+
+        <div id="clDangerZone" style="display:none;margin-top:28px;background:#FAECE7;border:1px solid #E8C4B8;border-radius:12px;padding:16px 20px;">
+          <div class="cl-display" style="font-size:14px;font-weight:600;color:#B23A2E;margin-bottom:6px;">Danger zone</div>
+          <div style="font-size:12px;color:#712B13;margin-bottom:12px;">Wipes every month's contribution history and every loan — for clearing out test data before members start using this for real. Member names and active/inactive status are kept.</div>
+          <button onclick="clResetAllBalances()" style="width:100%;padding:10px;border-radius:8px;border:none;background:#B23A2E;color:#fff;font-size:13px;font-weight:600;cursor:pointer;">Reset all balances</button>
+        </div>
+      </div>
+
+      <!-- LOANS TAB (admin only) -->
+      <div id="clTabLoans" style="display:none;">
+        <div style="font-size:12px;color:#5B5B52;margin-bottom:14px;">Loans carry 10% interest on the outstanding balance each month. This tab is only visible to signed-in admins — share loan status with members directly for now.</div>
+
+        <div style="background:#fff;border-radius:12px;padding:16px 20px;margin-bottom:18px;">
+          <div class="cl-display" style="font-size:14px;font-weight:600;color:#1F4A3D;margin-bottom:10px;">Issue a new loan</div>
+          <label style="display:block;font-size:12px;color:#5B5B52;margin-bottom:6px;">Member</label>
+          <select id="clLoanMember" style="width:100%;padding:9px 10px;border:1px solid #DDD5C0;border-radius:8px;margin-bottom:12px;font-size:14px;"></select>
+          <label style="display:block;font-size:12px;color:#5B5B52;margin-bottom:6px;">Loan amount</label>
+          <input id="clLoanPrincipal" type="number" placeholder="e.g. 5000" style="width:100%;padding:9px 10px;border:1px solid #DDD5C0;border-radius:8px;margin-bottom:12px;font-family:'IBM Plex Mono',monospace;font-size:14px;">
+          <button onclick="clIssueLoan()" style="width:100%;padding:10px;border-radius:8px;border:none;background:#1F4A3D;color:#fff;font-size:13px;font-weight:600;cursor:pointer;">Issue loan</button>
+        </div>
+
+        <div class="cl-display" style="font-size:14px;font-weight:600;color:#1F4A3D;margin-bottom:10px;">Active loans</div>
+        <div id="clLoansActive" style="margin-bottom:18px;"></div>
+
+        <div class="cl-display" style="font-size:14px;font-weight:600;color:#1F4A3D;margin-bottom:10px;">Paid off</div>
+        <div id="clLoansPaid"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script>
+/* =========================================================================
+   FILL THESE IN from your Supabase project: Settings > API
+   ========================================================================= */
+const SUPABASE_URL = "https://gaxzatoxclgfqmkqqyci.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdheHphdG94Y2xnZnFta3FxeWNpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM3OTE1OTYsImV4cCI6MjA5OTM2NzU5Nn0.wpPvm2hLsOv-f6roJasvk6DlNXY5rR8z2V71Jrsrdvo";
+/* ========================================================================= */
+
+(function(){
+  const CONTRIB = 2000, FEE = 20;
+  let members = [];
+  let monthData = {};
+  let currentMonth = new Date().toISOString().slice(0,7);
+  let sb;
+  let isAdmin = false;
+
+  function monthLabel(ym){
+    const [y,m] = ym.split('-').map(Number);
+    return new Date(y, m-1, 1).toLocaleString('en-US',{month:'long',year:'numeric'});
+  }
+  function fmt(n){
+    n = Math.round(n||0);
+    return 'KES ' + n.toLocaleString('en-US');
+  }
+  function showError(msg){
+    document.getElementById('clLoading').style.display='none';
+    const el = document.getElementById('clError');
+    el.style.display='block';
+    el.textContent = msg;
+  }
+
+  async function init(){
+    if (!window.supabase || SUPABASE_URL.startsWith('YOUR_')) {
+      showError('Supabase isn\'t connected yet. Open index.html, fill in SUPABASE_URL and SUPABASE_ANON_KEY from your Supabase project (Settings > API), then redeploy.');
+      return;
+    }
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const { data: sessionData } = await sb.auth.getSession();
+    isAdmin = !!(sessionData && sessionData.session);
+    renderAuthUI(sessionData && sessionData.session);
+
+    sb.auth.onAuthStateChange((_event, session) => {
+      isAdmin = !!session;
+      renderAuthUI(session);
+      renderAll();
+    });
+
+    await loadMembers();
+    await loadMonth(currentMonth);
+    document.getElementById('clLoading').style.display='none';
+    document.getElementById('clApp').style.display='block';
+    await renderAll();
+  }
+
+  function renderAuthUI(session){
+    const statusEl = document.getElementById('clAuthStatus');
+    const btnEl = document.getElementById('clAuthBtn');
+    if (session) {
+      statusEl.textContent = 'Signed in as ' + session.user.email;
+      btnEl.textContent = 'Sign out';
+      btnEl.onclick = clDoLogout;
+    } else {
+      statusEl.textContent = 'Viewing only';
+      btnEl.textContent = 'Sign in';
+      btnEl.onclick = clOpenLogin;
+    }
+  }
+
+  window.clOpenLogin = function(){
+    document.getElementById('clLoginError').textContent = '';
+    document.getElementById('clLoginModal').style.display = 'flex';
+  };
+  window.clCloseLogin = function(){
+    document.getElementById('clLoginModal').style.display = 'none';
+  };
+  window.clDoLogin = async function(){
+    const email = document.getElementById('clLoginEmail').value.trim();
+    const password = document.getElementById('clLoginPassword').value;
+    const { error } = await sb.auth.signInWithPassword({ email, password });
+    if (error) {
+      document.getElementById('clLoginError').textContent = error.message;
+      return;
+    }
+    clCloseLogin();
+  };
+  window.clDoLogout = async function(){
+    await sb.auth.signOut();
+  };
+
+  async function loadMembers(){
+    const { data, error } = await sb.from('members').select('*').order('sort_order');
+    if (error) { showError('Could not load members: ' + error.message); return; }
+    if (!data || data.length === 0) {
+      const seed = Array.from({length:18}, (_,i)=>({id:'m'+(i+1), name:'Member '+(i+1), active:true, sort_order:i+1}));
+      const { error: insErr } = await sb.from('members').insert(seed);
+      if (insErr) { showError('Could not create starter members: ' + insErr.message); return; }
+      members = seed;
+    } else {
+      members = data;
+    }
+  }
+
+  async function loadMonth(ym){
+    if (monthData[ym]) return monthData[ym];
+    const { data, error } = await sb.from('month_data').select('*').eq('id', ym).maybeSingle();
+    if (error) { showError('Could not load month data: ' + error.message); return null; }
+    if (!data) {
+      const fresh = { id:ym, records:{}, interest_adj:0, withdrawal_adj:0, payout_a:null, payout_b:null };
+      monthData[ym] = fresh;
+      return fresh;
+    }
+    monthData[ym] = data;
+    return data;
+  }
+
+  async function saveMonth(ym){
+    const d = monthData[ym];
+    const { error } = await sb.from('month_data').upsert({
+      id: ym, records: d.records, interest_adj: d.interest_adj || 0,
+      withdrawal_adj: d.withdrawal_adj || 0, payout_a: d.payout_a, payout_b: d.payout_b
+    });
+    if (error) console.error('Save failed', error.message);
+  }
+
+  async function saveMemberRow(mem){
+    const { error } = await sb.from('members').update({ name: mem.name, active: mem.active }).eq('id', mem.id);
+    if (error) console.error('Save failed', error.message);
+  }
+
+  function splitAmount(amount){
+    amount = Number(amount)||0;
+    if (amount <= 0) return {contribution:0, fee:0, savings:0, shortfall:CONTRIB+FEE, status:'missed'};
+    const fee = Math.min(FEE, amount);
+    const remaining = amount - fee;
+    const contribution = Math.min(remaining, CONTRIB);
+    const savings = Math.max(remaining - CONTRIB, 0);
+    const shortfall = Math.max(CONTRIB - remaining, 0);
+    let status = shortfall > 0 ? 'partial' : 'full';
+    return {contribution, fee, savings, shortfall, status};
+  }
+
+  // Rollover-aware calculation: any shortfall in a month becomes part of what's
+  // due the following month, so nobody has to add it up by hand.
+  let allMonthsMap = {};
+
+  async function refreshAllMonths(){
+    const { data, error } = await sb.from('month_data').select('*');
+    if (error) { console.error(error.message); allMonthsMap = {}; return; }
+    const map = {};
+    (data||[]).forEach(d=>{ map[d.id] = d; });
+    map[currentMonth] = monthData[currentMonth];
+    allMonthsMap = map;
+  }
+
+  function computeMemberSplit(memberId, uptoYm){
+    const keys = Object.keys(allMonthsMap).filter(k => k <= uptoYm).sort();
+    let owed = 0;
+    let result = {contribution:0, fee:0, savings:0, owedBefore:0, shortfall:0, status:'missed'};
+    keys.forEach(ym=>{
+      const rec = (allMonthsMap[ym] && allMonthsMap[ym].records) || {};
+      const amount = Number(rec[memberId]) || 0;
+      const fee = amount > 0 ? Math.min(FEE, amount) : 0;
+      const remaining = Math.max(amount - fee, 0);
+      const dueThisMonth = CONTRIB + owed;
+      const applied = Math.min(remaining, dueThisMonth);
+      const savings = Math.max(remaining - dueThisMonth, 0);
+      const owedBefore = owed;
+      const newOwed = dueThisMonth - applied;
+      const status = amount <= 0 ? 'missed' : (newOwed > 0 ? 'partial' : 'full');
+      result = {contribution:applied, fee, savings, owedBefore, shortfall:newOwed, status};
+      owed = newOwed;
+    });
+    return result;
+  }
+
+  window.clShiftMonth = async function(dir){
+    const [y,m] = currentMonth.split('-').map(Number);
+    const d = new Date(y, m-1+dir, 1);
+    currentMonth = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+    document.getElementById('clLoading').style.display='block';
+    document.getElementById('clApp').style.display='none';
+    await loadMonth(currentMonth);
+    document.getElementById('clLoading').style.display='none';
+    document.getElementById('clApp').style.display='block';
+    await renderAll();
+  };
+
+  window.clSwitchTab = function(tab){
+    ['ledger','payout','members','loans'].forEach(t=>{
+      document.getElementById('clTab'+t.charAt(0).toUpperCase()+t.slice(1)).style.display = (t===tab)?'block':'none';
+      const btn = document.querySelector('.cl-tab[data-tab="'+t+'"]');
+      if (t===tab){ btn.style.background='#1F4A3D'; btn.style.color='#fff'; btn.style.borderColor='#1F4A3D'; }
+      else { btn.style.background='#fff'; btn.style.color='#21241F'; btn.style.borderColor='#DDD5C0'; }
+    });
+  };
+
+  window.clUpdateAmount = function(id, val){
+    monthData[currentMonth].records[id] = val;
+    saveMonth(currentMonth);
+    renderLedgerRow(id);
+    renderSummary();
+    renderPayout();
+  };
+
+  window.clSaveAdjustments = function(){
+    monthData[currentMonth].interest_adj = Number(document.getElementById('clInterestInput').value)||0;
+    monthData[currentMonth].withdrawal_adj = Number(document.getElementById('clWithdrawalInput').value)||0;
+    saveMonth(currentMonth);
+    renderSummary();
+  };
+
+  window.clSavePayout = function(){
+    monthData[currentMonth].payout_a = document.getElementById('clPayoutA').value || null;
+    monthData[currentMonth].payout_b = document.getElementById('clPayoutB').value || null;
+    saveMonth(currentMonth);
+    renderPayout();
+  };
+
+  window.clAddMember = async function(){
+    const maxOrder = members.reduce((mx,m)=>Math.max(mx, m.sort_order||0), 0);
+    const mem = {id:'m'+Date.now(), name:'Member '+(members.length+1), active:true, sort_order:maxOrder+1};
+    const { error } = await sb.from('members').insert(mem);
+    if (error) { console.error(error.message); return; }
+    members.push(mem);
+    renderMemberManage(); renderLedger(); renderPayout();
+  };
+
+  window.clUpdateMemberName = function(id, name){
+    const mem = members.find(m=>m.id===id);
+    if (mem) { mem.name = name; saveMemberRow(mem); }
+    renderLedgerRow(id); renderPayout();
+  };
+
+  window.clToggleActive = function(id){
+    const mem = members.find(m=>m.id===id);
+    if (mem) { mem.active = !mem.active; saveMemberRow(mem); }
+    renderMemberManage(); renderLedger(); renderPayout();
+  };
+
+  // ---- LOANS (admin-only) ----
+  let loans = [];
+
+  async function loadLoans(){
+    const { data, error } = await sb.from('loans').select('*').order('created_at');
+    if (error) { console.error('Could not load loans:', error.message); loans = []; return; }
+    loans = data || [];
+  }
+
+  function memberName(id){
+    const m = members.find(x=>x.id===id);
+    return m ? m.name : 'Unknown member';
+  }
+
+  function renderLoanMemberOptions(){
+    const sel = document.getElementById('clLoanMember');
+    if (!sel) return;
+    const active = members.filter(m=>m.active);
+    sel.innerHTML = '<option value="">Select member</option>' + active.map(m=>'<option value="'+m.id+'">'+m.name+'</option>').join('');
+  }
+
+  window.clIssueLoan = async function(){
+    const memberId = document.getElementById('clLoanMember').value;
+    const principal = Number(document.getElementById('clLoanPrincipal').value);
+    if (!memberId || !principal || principal <= 0) return;
+    const loan = { id:'loan'+Date.now(), member_id:memberId, principal, balance:principal, status:'active', issued_month:currentMonth, entries:[] };
+    const { error } = await sb.from('loans').insert(loan);
+    if (error) { console.error(error.message); return; }
+    loans.push(loan);
+    document.getElementById('clLoanPrincipal').value = '';
+    renderLoans();
+  };
+
+  async function saveLoan(loan){
+    const { error } = await sb.from('loans').update({ balance: loan.balance, status: loan.status, entries: loan.entries }).eq('id', loan.id);
+    if (error) console.error('Save failed', error.message);
+  }
+
+  window.clApplyInterest = async function(loanId){
+    const loan = loans.find(l=>l.id===loanId);
+    if (!loan) return;
+    const alreadyApplied = loan.entries.some(e=>e.month===currentMonth && e.interest_added>0);
+    if (alreadyApplied) return;
+    const interest = Math.round(loan.balance * 0.10);
+    loan.balance = loan.balance + interest;
+    loan.entries = [...loan.entries, {month:currentMonth, interest_added:interest, repayment:0, balance_after:loan.balance}];
+    await saveLoan(loan);
+    renderLoans();
+  };
+
+  window.clRecordRepayment = async function(loanId){
+    const input = document.getElementById('clRepay-'+loanId);
+    const amount = Number(input.value);
+    if (!amount || amount <= 0) return;
+    const loan = loans.find(l=>l.id===loanId);
+    if (!loan) return;
+    loan.balance = Math.max(loan.balance - amount, 0);
+    loan.entries = [...loan.entries, {month:currentMonth, interest_added:0, repayment:amount, balance_after:loan.balance}];
+    if (loan.balance <= 0) loan.status = 'paid';
+    input.value = '';
+    await saveLoan(loan);
+    renderLoans();
+  };
+
+  window.clMarkLoanPaid = async function(loanId){
+    const loan = loans.find(l=>l.id===loanId);
+    if (!loan) return;
+    if (!confirm('Mark this loan as fully paid? This closes it out even if a balance remains outstanding.')) return;
+    loan.entries = [...loan.entries, {month:currentMonth, interest_added:0, repayment:loan.balance, balance_after:0, note:'manually marked paid'}];
+    loan.balance = 0;
+    loan.status = 'paid';
+    await saveLoan(loan);
+    renderLoans();
+  };
+
+  window.clDeleteLoan = async function(loanId){
+    if (!confirm('Delete this loan entirely? This is meant for clearing out test/example entries and cannot be undone.')) return;
+    const { error } = await sb.from('loans').delete().eq('id', loanId);
+    if (error) { console.error(error.message); return; }
+    loans = loans.filter(l=>l.id!==loanId);
+    renderLoans();
+  };
+
+  window.clResetAllBalances = async function(){
+    const confirmed = confirm(
+      'This will permanently delete ALL contribution/savings history and ALL loans for every month. ' +
+      'Members themselves are kept, just with zero balances. This cannot be undone.\n\n' +
+      'Type OK to continue.'
+    );
+    if (!confirmed) return;
+
+    document.getElementById('clLoading').style.display='block';
+    document.getElementById('clApp').style.display='none';
+
+    const { error: monthErr } = await sb.from('month_data').delete().neq('id', '__none__');
+    if (monthErr) console.error('Could not clear month_data:', monthErr.message);
+    const { error: loanErr } = await sb.from('loans').delete().neq('id', '__none__');
+    if (loanErr) console.error('Could not clear loans:', loanErr.message);
+
+    monthData = {};
+    allMonthsMap = {};
+    loans = [];
+    await loadMonth(currentMonth);
+
+    document.getElementById('clLoading').style.display='none';
+    document.getElementById('clApp').style.display='block';
+    await renderAll();
+  };
+
+  function renderLoans(){
+    renderLoanMemberOptions();
+    const active = loans.filter(l=>l.status==='active');
+    const paid = loans.filter(l=>l.status==='paid');
+
+    const activeWrap = document.getElementById('clLoansActive');
+    activeWrap.innerHTML = active.length ? '' : '<div style="font-size:12px;color:#5B5B52;">No active loans.</div>';
+    active.forEach(loan=>{
+      const alreadyThisMonth = loan.entries.some(e=>e.month===currentMonth && e.interest_added>0);
+      const div = document.createElement('div');
+      div.style.cssText = 'background:#fff;border-radius:10px;padding:14px 16px;margin-bottom:10px;';
+      div.innerHTML =
+        '<div style="display:flex;justify-content:space-between;align-items:baseline;">' +
+          '<div class="cl-display" style="font-size:14px;font-weight:600;">'+memberName(loan.member_id)+'</div>' +
+          '<div class="cl-num" style="font-size:13px;font-weight:600;">'+fmt(loan.balance)+' owed</div>' +
+        '</div>' +
+        '<div style="font-size:11px;color:#5B5B52;margin:4px 0 10px;">Principal '+fmt(loan.principal)+' · issued '+monthLabel(loan.issued_month)+'</div>' +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">' +
+          '<button onclick="clApplyInterest(\''+loan.id+'\')" '+(alreadyThisMonth?'disabled':'')+' style="padding:7px 12px;border-radius:6px;border:1px solid #DDD5C0;background:'+(alreadyThisMonth?'#F1EFE8':'#fff')+';font-size:12px;cursor:'+(alreadyThisMonth?'default':'pointer')+';color:'+(alreadyThisMonth?'#999':'#21241F')+';">'+(alreadyThisMonth?('Interest applied for '+monthLabel(currentMonth)):'Apply this month\u2019s 10% interest')+'</button>' +
+          '<input id="clRepay-'+loan.id+'" type="number" placeholder="Repayment amount" style="width:150px;padding:7px 9px;border:1px solid #DDD5C0;border-radius:6px;font-family:\'IBM Plex Mono\',monospace;font-size:12px;">' +
+          '<button onclick="clRecordRepayment(\''+loan.id+'\')" style="padding:7px 12px;border-radius:6px;border:none;background:#1F4A3D;color:#fff;font-size:12px;cursor:pointer;">Record repayment</button>' +
+        '</div>' +
+        '<div style="display:flex;gap:14px;margin-top:10px;">' +
+          '<button onclick="clMarkLoanPaid(\''+loan.id+'\')" style="background:none;border:none;padding:0;color:#085041;font-size:12px;font-weight:600;cursor:pointer;text-decoration:underline;">Mark loan paid</button>' +
+          '<button onclick="clDeleteLoan(\''+loan.id+'\')" style="background:none;border:none;padding:0;color:#B23A2E;font-size:12px;cursor:pointer;text-decoration:underline;">Delete (test entry)</button>' +
+        '</div>';
+      activeWrap.appendChild(div);
+    });
+
+    const paidWrap = document.getElementById('clLoansPaid');
+    paidWrap.innerHTML = paid.length ? '' : '<div style="font-size:12px;color:#5B5B52;">None yet.</div>';
+    paid.forEach(loan=>{
+      const div = document.createElement('div');
+      div.style.cssText = 'font-size:12px;color:#5B5B52;padding:6px 0;border-bottom:1px solid #EFE9DC;display:flex;justify-content:space-between;align-items:center;';
+      div.innerHTML = '<span>'+memberName(loan.member_id)+' — principal '+fmt(loan.principal)+', paid in full</span>' +
+        '<button onclick="clDeleteLoan(\''+loan.id+'\')" style="background:none;border:none;padding:0;color:#B23A2E;font-size:11px;cursor:pointer;text-decoration:underline;">Delete</button>';
+      paidWrap.appendChild(div);
+    });
+  }
+
+  function statusBadge(status){
+    const map = {
+      full:  {bg:'#E1F5EE', fg:'#085041', label:'Paid in full'},
+      partial:{bg:'#FAECE7', fg:'#712B13', label:'Partial'},
+      missed:{bg:'#F1EFE8', fg:'#444441', label:'Not received'}
+    };
+    const s = map[status];
+    return '<span style="background:'+s.bg+';color:'+s.fg+';font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;white-space:nowrap;">'+s.label+'</span>';
+  }
+
+  function renderLedgerRow(id){
+    const row = document.getElementById('clRow-'+id);
+    if (!row) return;
+    const split = computeMemberSplit(id, currentMonth);
+    row.querySelector('.cl-breakdown').innerHTML =
+      (split.owedBefore>0 ? '<span>Brought forward <b class="cl-num">'+fmt(split.owedBefore)+'</b></span>' : '') +
+      '<span>Contribution <b class="cl-num">'+fmt(split.contribution)+'</b></span>' +
+      '<span>Fee <b class="cl-num">'+fmt(split.fee)+'</b></span>' +
+      '<span>Savings <b class="cl-num">'+fmt(split.savings)+'</b></span>' +
+      (split.shortfall>0 ? '<span style="color:#B23A2E;">Owed next <b class="cl-num">'+fmt(split.shortfall)+'</b></span>' : '');
+    row.querySelector('.cl-status').innerHTML = statusBadge(split.status);
+  }
+
+  function renderLedger(){
+    const wrap = document.getElementById('clMemberRows');
+    wrap.innerHTML = '';
+    members.filter(m=>m.active).forEach(m=>{
+      const amount = (monthData[currentMonth].records[m.id]) || '';
+      const div = document.createElement('div');
+      div.id = 'clRow-'+m.id;
+      div.style.cssText = 'background:#fff;border-radius:10px;padding:12px 16px;margin-bottom:8px;';
+      div.innerHTML =
+        '<div style="display:flex;align-items:center;gap:10px;">' +
+          '<div class="cl-display" style="flex:1;font-size:14px;font-weight:600;">'+m.name+'</div>' +
+          '<span class="cl-status"></span>' +
+          '<input type="number" inputmode="numeric" value="'+amount+'" placeholder="Amount received" '+(isAdmin?'':'disabled')+' ' +
+            'oninput="clUpdateAmount(\''+m.id+'\', this.value)" ' +
+            'style="width:130px;padding:8px 10px;border:1px solid #DDD5C0;border-radius:8px;font-family:\'IBM Plex Mono\',monospace;text-align:right;font-size:13px;'+(isAdmin?'':'background:#F6F2E7;color:#5B5B52;')+'">' +
+        '</div>' +
+        '<div class="cl-breakdown" style="display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:11px;color:#5B5B52;"></div>';
+      wrap.appendChild(div);
+      renderLedgerRow(m.id);
+    });
+  }
+
+  function renderSummary(){
+    const data = monthData[currentMonth];
+    let totC=0, totF=0, totS=0, totOwed=0, paid=0, total=0;
+    members.filter(m=>m.active).forEach(m=>{
+      const split = computeMemberSplit(m.id, currentMonth);
+      totC += split.contribution; totF += split.fee; totS += split.savings; totOwed += split.shortfall;
+      total++;
+      if (split.status !== 'missed') paid++;
+    });
+    function row(label,val){
+      return '<div style="display:flex;justify-content:space-between;padding:3px 0;"><span style="color:#5B5B52;">'+label+'</span><span class="cl-num" style="font-weight:600;">'+val+'</span></div>';
+    }
+    document.getElementById('clSummaryRows').innerHTML =
+      row('Members paid', paid+' of '+total) +
+      row('Contributions collected', fmt(totC)) +
+      row('Transaction fees', fmt(totF)) +
+      row('Savings collected', fmt(totS)) +
+      (totOwed>0 ? row('Still owed (rolls to next month)', fmt(totOwed)) : '');
+    const interestEl = document.getElementById('clInterestInput');
+    const withdrawalEl = document.getElementById('clWithdrawalInput');
+    interestEl.value = data.interest_adj || '';
+    withdrawalEl.value = data.withdrawal_adj || '';
+    interestEl.disabled = !isAdmin;
+    withdrawalEl.disabled = !isAdmin;
+    computeRunningBalance();
+  }
+
+  async function computeRunningBalance(){
+    const { data, error } = await sb.from('month_data').select('*');
+    if (error) { console.error(error.message); return; }
+    let total = 0;
+    (data||[]).forEach(d=>{
+      members.forEach(m=>{
+        const amount = Number((d.records||{})[m.id]) || 0;
+        if (amount > 0) total += amount - Math.min(FEE, amount); // money actually collected, fee aside
+      });
+      total += (d.interest_adj||0) - (d.withdrawal_adj||0);
+    });
+    document.getElementById('clTotalBalance').textContent = fmt(total);
+  }
+
+  function renderPayout(){
+    const data = monthData[currentMonth];
+    const active = members.filter(m=>m.active);
+    const selA = document.getElementById('clPayoutA');
+    const selB = document.getElementById('clPayoutB');
+    [selA, selB].forEach(sel=>{
+      sel.innerHTML = '<option value="">Select member</option>' + active.map(m=>'<option value="'+m.id+'">'+m.name+'</option>').join('');
+    });
+    selA.value = data.payout_a || '';
+    selB.value = data.payout_b || '';
+    selA.disabled = !isAdmin;
+    selB.disabled = !isAdmin;
+    let totC = 0;
+    active.forEach(m=>{ totC += computeMemberSplit(m.id, currentMonth).contribution; });
+    document.getElementById('clPayoutEach').textContent = fmt(totC/2);
+  }
+
+  function renderMemberManage(){
+    const wrap = document.getElementById('clMemberManageRows');
+    wrap.innerHTML = '';
+    members.forEach(m=>{
+      const div = document.createElement('div');
+      div.style.cssText = 'display:flex;align-items:center;gap:8px;background:#fff;border-radius:8px;padding:10px 12px;margin-bottom:6px;'+(m.active?'':'opacity:0.5;');
+      div.innerHTML =
+        '<input value="'+m.name+'" '+(isAdmin?'':'disabled')+' onchange="clUpdateMemberName(\''+m.id+'\', this.value)" style="flex:1;padding:7px 9px;border:1px solid #DDD5C0;border-radius:6px;font-size:13px;'+(isAdmin?'':'background:#F6F2E7;color:#5B5B52;')+'">' +
+        (isAdmin ? '<button onclick="clToggleActive(\''+m.id+'\')" style="padding:7px 12px;border-radius:6px;border:1px solid #DDD5C0;background:#F6F2E7;font-size:12px;cursor:pointer;white-space:nowrap;">'+(m.active?'Mark inactive':'Reactivate')+'</button>' : '');
+      wrap.appendChild(div);
+    });
+    const addBtn = document.getElementById('clAddMemberBtn');
+    addBtn.style.display = isAdmin ? 'block' : 'none';
+    document.getElementById('clDangerZone').style.display = isAdmin ? 'block' : 'none';
+  }
+
+  async function renderAll(){
+    document.getElementById('clMonthLabel').textContent = monthLabel(currentMonth);
+    await refreshAllMonths();
+    renderLedger();
+    renderSummary();
+    renderPayout();
+    renderMemberManage();
+    document.getElementById('clLoansTabBtn').style.display = isAdmin ? 'block' : 'none';
+    if (isAdmin) {
+      await loadLoans();
+      renderLoans();
+    } else if (document.getElementById('clTabLoans').style.display !== 'none') {
+      clSwitchTab('ledger');
+    }
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
